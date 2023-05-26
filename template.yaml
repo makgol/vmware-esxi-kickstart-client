@@ -1,0 +1,46 @@
+environment:
+  vcenter:
+    hostname: <string> #vcenter fqdn or ip
+    username: <string> #vcenter username
+    password: <string> #vcenter password
+    datacenter: <string> #target datacenter
+    resourcepool: <string> #target resourcepool
+    folder: <string> #target folder
+  kickstartserver: <string> #url of nested-esxi-auto-installer server's api interface. e.g. http://<nested-esxi-auto-installer_ip>:8000
+  bootportgroup: <string> #service(dhcp, tftp, api) port of nested-esxi-auto-installer
+
+esxiInfo:
+  replica: <integer> #number of nested esxi
+  start_ip: <string> #start ip for nested esxi
+  netmask: <string> #netmask for nested esxi
+  gateway: <string> #gateway for nested esxi
+  name_prefix: <string> #name prefix for nested esxi. supported format name{n} or name{n,fixed=n}. if you set esxi{1, fixed=3}, first esxi name is esxi001.
+  domain: <string> #domain for nested esxi
+  password: <string> #root password for nested esxi
+  nameserver: <string> #nameserver for nested esxi
+  vlanid: <integer> #vlanid for nested esxi
+  keyboard: <string> #keyboard type for nested esxi
+  isofilename: <string> #installer iso file name
+  cli:
+    - <string> #cli commands after install. if you use secure boot, commands do not work
+    #- "vim-cmd hostsvc/enable_ssh"
+    #- "vim-cmd hostsvc/start_ssh"
+
+vmparameter:
+  cpu:
+    core: <integer> #cpu core
+    coreperscket: <integer> #core per sockets
+  memory:
+    memoryGB: <integer> # memory size GB
+  networks:
+    - <string> #portgroup name(vss and vds are supported)
+    #- "portgroup2"
+    #- "portgroup3"
+  storages:
+    - datastore: <string> #datastore name
+      capacityGB: <integer> #disk size GB
+    #- datastore: "datastore2"
+    #  capacityGB: 32
+  bootoption:
+    firmware: <string> # bios or efi are supported
+    secureboot: <bool> # if you use bios, do not change to true
