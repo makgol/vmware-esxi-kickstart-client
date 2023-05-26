@@ -1,0 +1,48 @@
+environment:
+  vcenter:
+    hostname: "vcenter.vsphere.local"
+    username: "administrator@vsphere.local"
+    password: "VMware1!"
+    datacenter: "Datacenter"
+    resourcepool: "RP001"
+    folder: "Discovered virtual machine"
+  kickstartserver: "http://172.25.255.238"
+  bootportgroup: "kickstart-boot-pg"
+
+esxiInfo:
+  replica: 3
+  start_ip: "192.168.1.1"
+  netmask: "255.255.255.0"
+  gateway: "192.168.1.254"
+  name_prefix: "esxi{1,fixed=3}"
+  domain: "vsphere.local"
+  password: "VMware1!"
+  nameserver: "192.168.100.1"
+  vlanid: 0
+  keyboard: "Japanese"
+  isofilename: "VMware-VMvisor-Installer-8.0U1-21495797.x86_64.iso"
+  cli:
+    - "vim-cmd hostsvc/enable_ssh"
+    - "vim-cmd hostsvc/start_ssh"
+
+vmparameter:
+  cpu:
+    core: 4
+    coreperscket: 4
+  memory:
+    memoryGB: 16
+  networks:
+    - "management-pg"
+    - "management-pg"
+    - "vmotion-pg"
+    - "vmotion-pg"
+    - "vsan-pg"
+    - "vsan-pg"
+  storages:
+    - datastore: "SSD-datastore"
+      capacityGB: 32
+    - datastore: "HDD-datastore"
+      capacityGB: 100
+  bootoption:
+    firmware: "efi"
+    secureboot: false
