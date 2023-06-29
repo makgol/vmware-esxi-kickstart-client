@@ -42,5 +42,5 @@ vmparameter:
     #- datastore: "datastore2"
     #  capacityGB: 32
   bootoption:
-    firmware: <string> # bios or efi are supported
-    secureboot: <bool> # if you use bios, do not change to true
+    firmware: <string> # bios or efi or http-efi are supported. http-efi is supported when the parent vSphere is 7.0u2 or later.
+    secureboot: <bool> # secure boot is supported in only http-efi
