@@ -43,8 +43,10 @@ When the code is executed, Nested ESXi will be automatically created in coordina
 |                 | &emsp;`datastore`    | `string` | datastore name                                                       |
 |                 | &emsp;`capacityGB`   | `integer`| datastore name and capacity in GB                                    |
 |                 | `bootoption`         |          |                                                                     
-|                 | &emsp;`firmware` | `string`| Firmware type (BIOS or EFI)                                     |
-|                 | &emsp;`secureboot`| `bool`  | Secure boot option (If you use BIOS, do not change to true)     |
+|                 | &emsp;`firmware` | `string`| Firmware type (bios or efi or http-efi. http-efi is supported when the parent vSphere is 7.0u2 or later.)                                     |
+|                 | &emsp;`secureboot`| `bool`  | Secure boot option (secure boot is supported with only http-efi)     |
+
+
 
 ## Usage
 1. Edit the template.yaml according to your environment.
@@ -56,3 +58,9 @@ When the code is executed, Nested ESXi will be automatically created in coordina
     ```bash
     go run main.go -yaml <your yaml path>
     ```
+
+## Options
+| Option | Type | Default Value | Description |
+| --- | --- | --- | --- |
+| `yaml` | `string` | `template.yaml` | Please specify the yaml file if you use other template file instead of template.yaml. |
+| `changemac` | `bool` | `false` | The MAC addresses of vmk0 and vmnic0 will be set to different values. This can be useful in cases such as VCF, where vmk0 is being migrated to VDS, when the parent vSphere is using only MAC learning in its port group. |

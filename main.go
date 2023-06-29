@@ -12,13 +12,13 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"os"
-	"os/signal"
 
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
@@ -117,7 +117,7 @@ func calcurateNamePrefix(namePrefix string) (int, string) {
 	return n, prefix + fmt.Sprintf("%%0%dd", padding)
 }
 
-func vmCreateHandler(ctx context.Context, hostname string, ip net.IP, esxiconfig ESXiConfig, wg *sync.WaitGroup) {
+func vmCreateHandler(ctx context.Context, hostname string, ip net.IP, esxiconfig ESXiConfig, wg *sync.WaitGroup, changemac bool) {
 	defer wg.Done()
 	environment := esxiconfig.Environment
 	vcInfo := environment.Vcenter
@@ -159,7 +159,7 @@ func vmCreateHandler(ctx context.Context, hostname string, ip net.IP, esxiconfig
 		return
 	}
 	getvmfolder := filepath.Join(folders.VmFolder.InventoryPath, vcInfo.Folder)
-    vmfolder := filepath.ToSlash(getvmfolder)
+	vmfolder := filepath.ToSlash(getvmfolder)
 
 	targetFolder, err := finder.Folder(ctx, vmfolder)
 	if err != nil {
@@ -202,6 +202,19 @@ func vmCreateHandler(ctx context.Context, hostname string, ip net.IP, esxiconfig
 		configSpec.Firmware = "efi"
 	case "bios":
 		configSpec.Firmware = "bios"
+	case "http-efi":
+		if bootoption.SecureBoot {
+			configSpec.BootOptions = &types.VirtualMachineBootOptions{
+				EfiSecureBootEnabled: types.NewBool(true),
+			}
+		}
+		configSpec.ExtraConfig = []types.BaseOptionValue{
+			&types.OptionValue{
+				Key:   "networkBootProtocol",
+				Value: "httpv4",
+			},
+		}
+		configSpec.Firmware = "efi"
 	}
 	devices := object.VirtualDeviceList{}
 	devices, scsictlKey := createScsiController(devices)
@@ -302,25 +315,107 @@ func vmCreateHandler(ctx context.Context, hostname string, ip net.IP, esxiconfig
 
 	newNet, err := finder.Network(ctx, vmParam.Networks[0])
 	bootNet.Backing, err = newNet.EthernetCardBackingInfo(ctx)
-	netConfigSpec := &types.VirtualMachineConfigSpec{
-		DeviceChange: []types.BaseVirtualDeviceConfigSpec{
-			&types.VirtualDeviceConfigSpec{
-				Operation: types.VirtualDeviceConfigSpecOperationEdit,
-				Device:    bootNet,
+	if changemac {
+		log.Printf("Change mac task for %s is started.", hostname)
+		log.Printf("Shutting down %s.", hostname)
+		err = newVM.ShutdownGuest(ctx)
+		if err != nil {
+			log.Fatalf("Failed to shutting down VM: %v", err)
+			return
+		}
+		for {
+			var vm mo.VirtualMachine
+			err = si.RetrieveOne(ctx, newVM.Reference(), []string{"summary.runtime.powerState"}, &vm)
+            if err != nil {
+				log.Fatalf("Failed to retrieve %s info: %v", hostname, err)
+                return
+            }
+			if vm.Summary.Runtime.PowerState == types.VirtualMachinePowerStatePoweredOff {
+				log.Printf("%s is powered off.", hostname)
+				break
+			}
+			time.Sleep(10)
+		}
+
+        log.Printf("Remove boot vnic for %s.", hostname)
+		netConfigSpec := &types.VirtualMachineConfigSpec{
+			DeviceChange: []types.BaseVirtualDeviceConfigSpec{
+				&types.VirtualDeviceConfigSpec{
+					Operation: types.VirtualDeviceConfigSpecOperationRemove,
+					Device:    bootNet,
+				},
 			},
-		},
+		}
+
+		task, _ = newVM.Reconfigure(ctx, *netConfigSpec)
+		if err != nil {
+			log.Fatalf("Failed to change portgroup for boot network.: %v", err)
+			return
+		}
+
+		_, err = task.WaitForResult(ctx, nil)
+		if err != nil {
+			log.Fatalf("Failed to change portgroup for boot network.: %v", err)
+			return
+		}
+
+		log.Printf("Add new vnic for %s.", hostname)
+		bootNet.MacAddress = ""
+		netConfigSpec = &types.VirtualMachineConfigSpec{
+			DeviceChange: []types.BaseVirtualDeviceConfigSpec{
+				&types.VirtualDeviceConfigSpec{
+					Operation: types.VirtualDeviceConfigSpecOperationAdd,
+					Device:    bootNet,
+				},
+			},
+		}
+
+		task, _ = newVM.Reconfigure(ctx, *netConfigSpec)
+		if err != nil {
+			log.Fatalf("Failed to change portgroup for boot network.: %v", err)
+			return
+		}
+        
+		_, err = task.WaitForResult(ctx, nil)
+		if err != nil {
+			log.Fatalf("Failed to change portgroup for boot network.: %v", err)
+			return
+		}
+        
+		log.Printf("Powering on %s.", hostname)
+		task, err = newVM.PowerOn(ctx)
+		if err != nil {
+			log.Fatalf("Failed to power off VM: %v", err)
+			return
+		}
+
+		err = waitForIP(ctx, newVM, ip.String(), hostname)
+		if err != nil {
+			log.Fatalf("Failed to wait for VM IP: %v", err)
+			return
+		}
+
+	} else {
+		netConfigSpec := &types.VirtualMachineConfigSpec{
+			DeviceChange: []types.BaseVirtualDeviceConfigSpec{
+				&types.VirtualDeviceConfigSpec{
+					Operation: types.VirtualDeviceConfigSpecOperationEdit,
+					Device:    bootNet,
+				},
+			},
+		}
+		task, _ = newVM.Reconfigure(ctx, *netConfigSpec)
+		if err != nil {
+			log.Fatalf("Failed to change portgroup for boot network.: %v", err)
+			return
+		}
+		_, err = task.WaitForResult(ctx, nil)
+		if err != nil {
+			log.Fatalf("Failed to change portgroup for boot network.: %v", err)
+			return
+		}
+		log.Printf("The network adapter port group for %s has been changed successfully.", hostname)
 	}
-	task, _ = newVM.Reconfigure(ctx, *netConfigSpec)
-	if err != nil {
-		log.Fatalf("Failed to change portgroup for boot network.: %v", err)
-		return
-	}
-	_, err = task.WaitForResult(ctx, nil)
-	if err != nil {
-		log.Fatalf("Failed to change portgroup for boot network.: %v", err)
-		return
-	}
-	log.Printf("The network adapter port group for %s has been changed successfully.", hostname)
 
 	sendApiRequest(kickstartserver, "DELETE", data)
 
@@ -378,11 +473,11 @@ func waitForIP(ctx context.Context, vm *object.VirtualMachine, targetIP string, 
 			}
 
 			if mo.Guest.IpAddress == targetIP {
-				log.Printf("IP is expected %s. Install ESXi for %s completed.", mo.Guest.IpAddress, hostname)
+				log.Printf("IP address for %s is expected %s.", hostname, mo.Guest.IpAddress)
 				return nil
 			} else {
 				var currentIP string
-				if mo.Guest.IpAddress == ""{
+				if mo.Guest.IpAddress == "" {
 					currentIP = "null"
 				} else {
 					currentIP = mo.Guest.IpAddress
@@ -519,10 +614,11 @@ func validateNetworkAddr(esxiconfig ESXiConfig) error {
 func main() {
 	sigChannel := make(chan os.Signal, 1)
 	signal.Notify(sigChannel, os.Interrupt)
-    ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	yamlPath := flag.String("yaml", "template.yaml", "path to the yaml config file")
+	changemac := flag.Bool("changemac", false, "separate mac address vmk0 and vmnic0")
 	flag.Parse()
 
 	yamlFile, err := ioutil.ReadFile(*yamlPath)
@@ -549,14 +645,14 @@ func main() {
 		ip := make(net.IP, len(startIP))
 		copy(ip, startIP)
 		ip[3] += byte(i)
-		go vmCreateHandler(ctx, hostname, ip, esxiconfig, &wg)
+		go vmCreateHandler(ctx, hostname, ip, esxiconfig, &wg, *changemac)
 	}
 	done := make(chan struct{})
 	go func() {
-	    wg.Wait()
+		wg.Wait()
 		close(done)
 	}()
-    
+
 	select {
 	case <-done:
 		log.Printf("All installation tasks has been completed.")
