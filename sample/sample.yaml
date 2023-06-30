@@ -21,6 +21,7 @@ esxiInfo:
   vlanid: 0
   keyboard: "Japanese"
   isofilename: "VMware-VMvisor-Installer-8.0U1-21495797.x86_64.iso"
+  notvmpgcreate: false
   cli:
     - "vim-cmd hostsvc/enable_ssh"
     - "vim-cmd hostsvc/start_ssh"

@@ -54,6 +54,7 @@ type ESXiConfig struct {
 		Keyboard    string   `yaml:"keyboard"`
 		Isofilename string   `yaml:"isofilename"`
 		Cli         []string `yaml:"cli"`
+		NotVmPgCreate bool `yaml:"notvmpgcreate"`
 	} `yaml:"esxiInfo"`
 	VmParameter struct {
 		Cpu struct {
@@ -87,6 +88,7 @@ type RequestBody struct {
 	Keyboard    string   `json:"keyboard"`
 	Isofilename string   `json:"isofilename"`
 	Cli         []string `json:"cli"`
+	NotVmPgCreate bool `json:"notvmpgcreate"`
 }
 
 type EsxiVersionResponse struct {
