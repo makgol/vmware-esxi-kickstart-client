@@ -21,6 +21,7 @@ esxiInfo:
   vlanid: <integer> #vlanid for nested esxi
   keyboard: <string> #keyboard type for nested esxi
   isofilename: <string> #installer iso file name
+  notvmpgcreate: <bool> #disable create default vm network portgroup
   cli:
     - <string> #cli commands after install. if you use secure boot, commands do not work
     #- "vim-cmd hostsvc/enable_ssh"

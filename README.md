@@ -30,6 +30,7 @@ When the code is executed, Nested ESXi will be automatically created in coordina
 |                 | `vlanid`             | `integer`| vlanid for nested esxi                                               |
 |                 | `keyboard`           | `string` | keyboard type for nested esxi                                        |
 |                 | `isofilename`        | `string` | installer iso file name                                              |
+|                 | `notvmpgcreate`      | `bool`   | disable create default VM Network port group                          |
 |                 | `cli`                | `array`  |                                                                      |
 |                 |                      | `string` | cli commands after install. if you use secure boot, commands do not work |
 | **vmparameter** | `cpu`                |          |                                                                      |
