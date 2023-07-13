@@ -398,6 +398,10 @@ func vmCreateHandler(ctx context.Context, hostname string, ip net.IP, esxiconfig
 		}
 
 	} else {
+		bootNet.Connectable = &types.VirtualDeviceConnectInfo{
+			StartConnected: true,
+			Connected: true,
+		}
 		netConfigSpec := &types.VirtualMachineConfigSpec{
 			DeviceChange: []types.BaseVirtualDeviceConfigSpec{
 				&types.VirtualDeviceConfigSpec{
